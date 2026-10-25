@@ -17,4 +17,4 @@ search:
     - html
     - json
   autocomplete: ""
-  default_lang: "es"
+  default_lang: "en"

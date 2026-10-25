@@ -91,7 +91,7 @@ def http_get(url, accept="*/*"):
     req = urllib.request.Request(url, headers={
         "User-Agent": USER_AGENT,
         "Accept": accept,
-        "Accept-Language": "es,en;q=0.8",
+        "Accept-Language": "en,es;q=0.8",
     })
     with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
         raw = resp.read(MAX_BYTES)
@@ -118,7 +118,7 @@ def tool_web_search(args):
     params = urllib.parse.urlencode({
         "q": query,
         "format": "json",
-        "language": args.get("language", "es"),
+        "language": args.get("language", "en"),
         "safesearch": "0",
     })
     url = f"{SEARXNG_URL}/search?{params}"
@@ -220,7 +220,7 @@ TOOLS = [
                 "max_results": {"type": "integer",
                                 "description": "Number of results (1-15, default 5)"},
                 "language": {"type": "string",
-                             "description": "Results language, e.g. 'es' or 'en'"},
+                             "description": "Results language, e.g. 'en' or 'es'"},
             },
             "required": ["query"],
         },
