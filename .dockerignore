@@ -1,0 +1,4 @@
+# The build context only needs scripts/. Everything else is excluded: .gguf
+# files are several GB and sending them to the daemon on every build is pointless.
+*
+!scripts/

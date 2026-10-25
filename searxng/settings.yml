@@ -1,0 +1,20 @@
+# Minimal SearXNG configuration to serve as the model's search backend.
+# Everything else is inherited from the image defaults.
+use_default_settings: true
+
+server:
+  # Only reachable from the compose internal network; not published to the host.
+  secret_key: "change-me-not-critical-on-localhost"
+  # The limiter is meant for public instances; here only our own MCP server
+  # queries it, and the limiter would block its requests.
+  limiter: false
+  public_instance: false
+
+search:
+  # The json format is NOT enabled by default: without this, the API
+  # returns HTML and the MCP server cannot parse anything.
+  formats:
+    - html
+    - json
+  autocomplete: ""
+  default_lang: "es"

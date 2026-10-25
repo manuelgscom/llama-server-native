@@ -1,0 +1,94 @@
+services:
+  llama-server:
+    image: llama-server-native:${LLAMA_CPP_REF:-v0.7.0}
+    build:
+      context: .
+      args:
+        LLAMA_CPP_REF: ${LLAMA_CPP_REF:-v0.7.0}
+        CUDA_VERSION: ${CUDA_VERSION:-12.9.2}
+        UBUNTU_VERSION: ${UBUNTU_VERSION:-24.04}
+        GCC_VERSION: ${GCC_VERSION:-14}
+        NODE_VERSION: ${NODE_VERSION:-24}
+        # Target compute capability. The GPU is not visible during
+        # `docker build`, so it is set here. If it does not match the actual GPU,
+        # the entrypoint detects it at startup and aborts.
+        CUDA_ARCH: ${CUDA_ARCH:-120a-real}
+
+    container_name: llama-server
+    gpus: all
+    restart: unless-stopped
+
+    # So .gguf files downloaded by the server are owned by you, not root
+    user: "${LLAMA_UID:-1000}:${LLAMA_GID:-1000}"
+
+    # Localhost only: llama-server has no authentication by default
+    ports:
+      - "127.0.0.1:${PORT:-8080}:8080"
+
+    volumes:
+      - ./models:/models   # your manually downloaded .gguf files
+      - ./cache:/cache     # downloads via -hf
+      - ./mcp.json:/opt/llama/mcp.json:ro
+
+    environment:
+      # No fixed model -> llama-server starts in ROUTER MODE: the Web UI lists
+      # the models in /models and /cache and loads/unloads them on the fly.
+      LLAMA_ARG_MODELS_DIR: /models
+      LLAMA_CACHE: /cache
+
+      # Automatic GPU/CPU split. Do NOT set a number: it disables --fit and a
+      # model that does not fully fit fails to load instead of being split.
+      LLAMA_ARG_N_GPU_LAYERS: ${N_GPU_LAYERS:-auto}
+      LLAMA_ARG_FIT_TARGET: ${FIT_TARGET:-1024}
+
+      # Per-conversation context + 8-bit quantized KV cache (half the VRAM
+      # of f16, with no noticeable quality difference).
+      LLAMA_ARG_CTX_SIZE: ${CTX_SIZE:-16384}
+      LLAMA_ARG_CACHE_TYPE_K: ${CACHE_TYPE_K:-q8_0}
+      LLAMA_ARG_CACHE_TYPE_V: ${CACHE_TYPE_V:-q8_0}
+      LLAMA_ARG_FLASH_ATTN: ${FLASH_ATTN:-auto}
+
+      # Reuses the common prefix across turns of a conversation
+      LLAMA_ARG_CACHE_REUSE: ${CACHE_REUSE:-256}
+
+      LLAMA_ARG_THREADS: ${THREADS:--1}
+
+      # 1 model loaded at a time: with 16 GB of VRAM, two models compete for
+      # memory and end up on the CPU. Measured: the 1.7B drops from 357 to 57 tok/s.
+      LLAMA_ARG_MODELS_MAX: ${MODELS_MAX:-1}
+
+      # Any extra llama-server flags, passed as-is. E.g.: "--metrics --api-key x"
+      LLAMA_EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+      # Internet access: web_search and fetch_url tools via the MCP server
+      # in scripts/mcp-websearch.py. Enabled by default.
+      # To disable it:  WEB_SEARCH=   (empty) in .env
+      LLAMA_ARG_MCP_SERVERS_CONFIG: ${WEB_SEARCH:-/opt/llama/mcp.json}
+
+      HF_TOKEN: ${HF_TOKEN:-}
+      ALLOW_HW_MISMATCH: ${ALLOW_HW_MISMATCH:-0}
+
+  # ---------------------------------------------------------------------------
+  # Local search engine backing the model's web tools.
+  # Starts alongside llama-server. It publishes no ports: only the MCP server
+  # queries it, over the compose internal network.
+  #
+  # No depends_on, on purpose: llama-server does not need it to start (the MCP
+  # warmup only lists tools), and both use restart: unless-stopped.
+  # ---------------------------------------------------------------------------
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      SEARXNG_BASE_URL: http://searxng:8080/
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID]

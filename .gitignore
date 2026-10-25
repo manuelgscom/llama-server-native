@@ -1,0 +1,7 @@
+# Models: several GB each
+models/*
+!models/.gitkeep
+cache/*
+!cache/.gitkeep
+.env
+.vscode/

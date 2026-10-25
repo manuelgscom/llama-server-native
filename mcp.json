@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "web": {
+      "command": "python3",
+      "args": ["/opt/llama/mcp-websearch.py"],
+      "env": {
+        "SEARXNG_URL": "http://searxng:8080"
+      },
+      "timeout_ms": 60000
+    }
+  }
+}
